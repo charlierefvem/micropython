@@ -1,0 +1,61 @@
+name: Build Custom Mechatronics Firmware
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout custom repo
+        uses: actions/checkout@v4
+
+      - name: Install ARM GCC compiler toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-none-eabi \
+            build-essential \
+            libffi-dev \
+            pkg-config \
+            libnewlib-arm-none-eabi
+
+      - name: Clone MicroPython source
+        run: |
+          git clone --depth=1 https://github.com/micropython/micropython.git mp_source
+          cd mp_source
+          git submodule update --init --recursive
+          
+      - name: Clone ulab
+        run: |
+          git clone --depth=1 https://github.com/v923z/micropython-ulab.git ulab
+
+      - name: Inject custom board definitions
+        run: |
+          if [ -d "ports/stm32/boards/NUCLEO_L476RG" ]; then
+            cp -r ports/stm32/boards/NUCLEO_L476RG/* mp_source/ports/stm32/boards/NUCLEO_L476RG/
+          fi
+
+      - name: Build mpy-cross
+        run: |
+          make -C mp_source/mpy-cross
+
+      - name: Build STM32 firmware
+        run: |
+          make -C mp_source/ports/stm32 \
+            BOARD=NUCLEO_L476RG \
+            USER_C_MODULES=$GITHUB_WORKSPACE/ulab/code/micropython.cmake
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: custom-nucleo-l476rg-firmware
+          path: |
+            mp_source/ports/stm32/build-NUCLEO_L476RG/firmware.hex
+            mp_source/ports/stm32/build-NUCLEO_L476RG/firmware.dfu
