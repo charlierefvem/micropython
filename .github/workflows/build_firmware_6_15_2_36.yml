@@ -72,12 +72,10 @@ jobs:
 
       - name: Freeze Custom Class Modules into Firmware
         run: |
-          SRC="ports/stm32/boards/NUCLEO_L476RG/modules"
-          DST="mp_source/ports/stm32/boards/NUCLEO_L476RG/modules"
-          if [ -d "$SRC" ]; then
+          if [ -d "modules" ]; then
             echo "Custom Python scripts detected. Freezing modules into Flash sectors..."
-            mkdir -p "$DST"
-            cp -r "$SRC"/* "$DST"/
+            mkdir -p mp_source/ports/stm32/boards/NUCLEO_L476RG/modules
+            cp -r modules/* mp_source/ports/stm32/boards/NUCLEO_L476RG/modules/
           else
             echo "No 'modules' directory found. Skipping code freezing."
           fi
