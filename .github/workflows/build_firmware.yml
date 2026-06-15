@@ -1,5 +1,4 @@
 name: Build Custom Mechatronics Firmware
-
 on:
   push:
     branches: [main, master]
@@ -11,7 +10,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout custom repo
         uses: actions/checkout@v4
@@ -31,13 +29,21 @@ jobs:
           git clone --depth=1 https://github.com/micropython/micropython.git mp_source
           cd mp_source
           git submodule update --init --recursive
-          
+
       - name: Clone ulab
         run: |
           git clone --depth=1 https://github.com/v923z/micropython-ulab.git ulab
+          cd ulab
+          git submodule update --init --recursive
+
+      - name: Inject custom ulab configuration
+        run: |
+          cp third_party/ulab/ulab.h "$GITHUB_WORKSPACE/ulab/code/ulab.h"
 
       - name: Inject custom board definitions
         run: |
+          # Corrected path to pull custom files from your repo to the freshly cloned microPython folder
+          mkdir -p mp_source/ports/stm32/boards/NUCLEO_L476RG
           if [ -d "ports/stm32/boards/NUCLEO_L476RG" ]; then
             cp -r ports/stm32/boards/NUCLEO_L476RG/* mp_source/ports/stm32/boards/NUCLEO_L476RG/
           fi
@@ -46,11 +52,18 @@ jobs:
         run: |
           make -C mp_source/mpy-cross
 
-      - name: Build STM32 firmware
+      - name: Fetch STM32 Board Submodules
+        run: |
+          # Explicitly build submodules needed specifically for STM32 architecture
+          make -C mp_source/ports/stm32 BOARD=NUCLEO_L476RG submodules
+
+      - name: Build STM32 firmware with ulab
         run: |
           make -C mp_source/ports/stm32 \
             BOARD=NUCLEO_L476RG \
-            USER_C_MODULES=$GITHUB_WORKSPACE/ulab/code/micropython.cmake
+            USER_C_MODULES="$GITHUB_WORKSPACE/ulab" \
+            V=1
+
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
