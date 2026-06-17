@@ -11,6 +11,7 @@ env:
   MICROPYTHON_REF: master
   ULAB_REF: master
   CACHE_VERSION: v2
+  MICROPY_FROZEN_OPT_LEVEL: ${{ vars.MICROPY_FROZEN_OPT_LEVEL || '0' }}
 
 jobs:
   build:
@@ -60,9 +61,9 @@ jobs:
           path: |
             mp_source
             ulab
-          key: ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-${{ hashFiles('ports/stm32/boards/NUCLEO_L476RG/**', 'third_party/ulab/**', 'tools/**') }}
+          key: ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-opt${{ env.MICROPY_FROZEN_OPT_LEVEL }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-${{ hashFiles('ports/stm32/boards/NUCLEO_L476RG/**', 'third_party/ulab/**', 'tools/**') }}
           restore-keys: |
-            ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-
+            ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-opt${{ env.MICROPY_FROZEN_OPT_LEVEL }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-
             ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-
 
       - name: Prepare MicroPython source
