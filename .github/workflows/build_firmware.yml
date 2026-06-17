@@ -60,7 +60,7 @@ jobs:
           path: |
             mp_source
             ulab
-          key: ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-${{ hashFiles('ports/stm32/boards/NUCLEO_L476RG/**', 'third_party/ulab/**') }}
+          key: ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-${{ hashFiles('ports/stm32/boards/NUCLEO_L476RG/**', 'third_party/ulab/**', 'tools/**') }}
           restore-keys: |
             ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-
             ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-
@@ -95,6 +95,16 @@ jobs:
           if [ -f ulab/.gitmodules ]; then
             git -C ulab submodule update --init --recursive --depth=1
           fi
+
+      - name: Generate register interface module
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 register_map_generator.py
+          test -s register_interface.py
+          mkdir -p ../ports/stm32/boards/NUCLEO_L476RG/modules
+          cp register_interface.py ../ports/stm32/boards/NUCLEO_L476RG/modules/register_interface.py
+        working-directory: tools
 
       # 3. INJECT REPO CONFIGURATIONS (Always run this because your repo files might have edited properties)
       - name: Inject custom ulab configuration

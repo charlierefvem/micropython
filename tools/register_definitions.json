@@ -1,0 +1,232 @@
+{
+  "Metadata": {
+    "MemoryLayout": {
+      "block_size": 128,
+      "word_size": 4,
+      "align": true,
+      "extend": true
+    }
+  },
+  "Systems": {
+    "LeftMotor": {
+      "Registers": {
+        "Controller": {
+          "Parameters": {
+            "alias": "p",
+            "SaturationMinimum": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V"
+            },
+            "SaturationMaximum": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V"
+            },
+            "DCSupplyVoltage": {
+              "type": "FLOAT32",
+              "range": [0, "inf"],
+              "units": "V"
+            },
+            "Setpoint": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s"
+            },
+            "SampleLength": {
+              "type": "UINT32",
+              "range": [0, "max_u32"],
+              "units": "samples"
+            }
+          },
+          "Commands": {
+            "Reset": {
+              "type": "UINT8"
+            }
+          },
+          "Gains": {
+            "alias": "K",
+            "Kp": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V*s/rad"
+            },
+            "Ki": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V/rad"
+            },
+            "Kf": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V*s/rad"
+            }
+          }
+        },
+        "Signals": {
+          "Time": {
+            "type": "FLOAT32",
+            "range": [0, "inf"],
+            "units": "s"
+          },
+          "Inputs": {
+            "alias": "w",
+            "Actuation": {
+              "alias": "u",
+              "MotorVoltage": {
+                "type": "FLOAT32",
+                "range": ["-inf", "inf"],
+                "units": "V"
+              }
+            },
+            "Measurements": {
+              "alias": "y",
+              "Displacement": {
+                "type": "FLOAT32",
+                "range": ["-inf", "inf"],
+                "units": "rad"
+              }
+            }
+          },
+          "Estimates": {
+            "alias": "x_h",
+            "EstimatedVelocity": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "alias": "omega_h",
+              "units": "rad/s"
+            },
+            "EstimatedDisplacement": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "alias": "theta_h",
+              "units": "rad"
+            },
+            "EstimatedDisturbance": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "alias": "d_h",
+              "units": "rad/s/s"
+            }
+          },
+          "FiniteDifferenceVelocity": {
+            "type": "FLOAT32",
+            "range": ["-inf", "inf"],
+            "alias": "omega_fd",
+            "units": "rad/s"
+          }
+        }
+      }
+    },
+    "RightMotor": {
+      "Registers": {
+        "Controller": {
+          "Parameters": {
+            "alias": "p",
+            "SaturationMinimum": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V"
+            },
+            "SaturationMaximum": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V"
+            },
+            "DCSupplyVoltage": {
+              "type": "FLOAT32",
+              "range": [0, "inf"],
+              "units": "V"
+            },
+            "Setpoint": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s"
+            },
+            "SampleLength": {
+              "type": "UINT32",
+              "range": [0, "max_u32"],
+              "units": "samples"
+            }
+          },
+          "Commands": {
+            "Reset": {
+              "type": "UINT8"
+            }
+          },
+          "Gains": {
+            "alias": "K",
+            "Kp": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V*s/rad"
+            },
+            "Ki": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V/rad"
+            },
+            "Kf": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V*s/rad"
+            }
+          }
+        },
+        "Signals": {
+          "Time": {
+            "type": "FLOAT32",
+            "range": [0, "inf"],
+            "units": "s"
+          },
+          "Inputs": {
+            "alias": "w",
+            "Actuation": {
+              "alias": "u",
+              "MotorVoltage": {
+                "type": "FLOAT32",
+                "range": ["-inf", "inf"],
+                "units": "V"
+              }
+            },
+            "Measurements": {
+              "alias": "y",
+              "Displacement": {
+                "type": "FLOAT32",
+                "range": ["-inf", "inf"],
+                "units": "rad"
+              }
+            }
+          },
+          "Estimates": {
+            "alias": "x_h",
+            "EstimatedVelocity": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "alias": "omega_h",
+              "units": "rad/s"
+            },
+            "EstimatedDisplacement": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "alias": "theta_h",
+              "units": "rad"
+            },
+            "EstimatedDisturbance": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "alias": "d_h",
+              "units": "rad/s/s"
+            }
+          },
+          "FiniteDifferenceVelocity": {
+            "type": "FLOAT32",
+            "range": ["-inf", "inf"],
+            "alias": "omega_fd",
+            "units": "rad/s"
+          }
+        }
+      }
+    }
+  }
+}
