@@ -7,6 +7,11 @@ on:
 permissions:
   contents: read
 
+env:
+  MICROPYTHON_REF: master
+  ULAB_REF: master
+  CACHE_VERSION: v2
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,69 +20,116 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install ARM GCC compiler toolchain
+        shell: bash
         run: |
+          set -euxo pipefail
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             gcc-arm-none-eabi \
             build-essential \
-            libffi-dev \
-            pkg-config \
             libnewlib-arm-none-eabi
+          arm-none-eabi-gcc --version
 
-      # 1. SETUP CLOUD CACHE BUCKET FOR REPOSITORIES
-      - name: Cache MicroPython and ulab sources
-        id: cache-sources
+      - name: Resolve upstream source revisions
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          mp_sha="$(git ls-remote https://github.com/micropython/micropython.git "refs/heads/${MICROPYTHON_REF}" | awk '{print $1}')"
+          ulab_sha="$(git ls-remote https://github.com/v923z/micropython-ulab.git "refs/heads/${ULAB_REF}" | awk '{print $1}')"
+
+          if [ -z "$mp_sha" ]; then
+            echo "::error::Could not resolve MicroPython ref '${MICROPYTHON_REF}'"
+            exit 1
+          fi
+
+          if [ -z "$ulab_sha" ]; then
+            echo "::error::Could not resolve ulab ref '${ULAB_REF}'"
+            exit 1
+          fi
+
+          echo "micropython_sha=$mp_sha" >> "$GITHUB_OUTPUT"
+          echo "ulab_sha=$ulab_sha" >> "$GITHUB_OUTPUT"
+
+      # Cache the external source trees and their build outputs. The key changes
+      # when upstream source or local board/ulab configuration changes.
+      - name: Cache MicroPython, ulab, and build outputs
+        id: cache-firmware
         uses: actions/cache@v4
         with:
           path: |
             mp_source
             ulab
-          # This key ties the cache strictly to the latest online commit of both tools
-          key: ${{ runner.os }}-mp-source-${{ github.sha }}
+          key: ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-${{ hashFiles('ports/stm32/boards/NUCLEO_L476RG/**', 'third_party/ulab/**') }}
           restore-keys: |
-            ${{ runner.os }}-mp-source-
+            ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-
+            ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-
 
-      # 2. ONLY CLONE IF CACHE MISS OCCURS
-      - name: Clone MicroPython source (Cache Miss Only)
-        if: steps.cache-sources.outputs.cache-hit != 'true'
+      - name: Prepare MicroPython source
+        shell: bash
         run: |
-          git clone --depth=1 https://github.com/micropython/micropython.git mp_source
-          cd mp_source
-          git submodule update --init --recursive
+          set -euxo pipefail
+          if [ -d mp_source/.git ]; then
+            git -C mp_source remote set-url origin https://github.com/micropython/micropython.git
+            git -C mp_source fetch --depth=1 origin "${MICROPYTHON_REF}"
+          else
+            rm -rf mp_source
+            git clone --depth=1 --branch "${MICROPYTHON_REF}" https://github.com/micropython/micropython.git mp_source
+          fi
+          git -C mp_source checkout --detach "${{ steps.upstream.outputs.micropython_sha }}"
+          git -C mp_source reset --hard "${{ steps.upstream.outputs.micropython_sha }}"
 
-      - name: Clone ulab (Cache Miss Only)
-        if: steps.cache-sources.outputs.cache-hit != 'true'
+      - name: Prepare ulab source
+        shell: bash
         run: |
-          git clone --depth=1 https://github.com/v923z/micropython-ulab.git ulab
-          cd ulab
-          git submodule update --init --recursive
+          set -euxo pipefail
+          if [ -d ulab/.git ]; then
+            git -C ulab remote set-url origin https://github.com/v923z/micropython-ulab.git
+            git -C ulab fetch --depth=1 origin "${ULAB_REF}"
+          else
+            rm -rf ulab
+            git clone --depth=1 --branch "${ULAB_REF}" https://github.com/v923z/micropython-ulab.git ulab
+          fi
+          git -C ulab checkout --detach "${{ steps.upstream.outputs.ulab_sha }}"
+          git -C ulab reset --hard "${{ steps.upstream.outputs.ulab_sha }}"
+          if [ -f ulab/.gitmodules ]; then
+            git -C ulab submodule update --init --recursive --depth=1
+          fi
 
       # 3. INJECT REPO CONFIGURATIONS (Always run this because your repo files might have edited properties)
       - name: Inject custom ulab configuration
+        shell: bash
         run: |
+          test -f third_party/ulab/ulab.h
+          test -d "$GITHUB_WORKSPACE/ulab/code"
           cp third_party/ulab/ulab.h "$GITHUB_WORKSPACE/ulab/code/ulab.h"
 
       - name: Inject custom board definitions
+        shell: bash
         run: |
-          mkdir -p mp_source/ports/stm32/boards/NUCLEO_L476RG
-          if [ -d "ports/stm32/boards/NUCLEO_L476RG" ]; then
-            cp -r ports/stm32/boards/NUCLEO_L476RG/* mp_source/ports/stm32/boards/NUCLEO_L476RG/
+          SRC="ports/stm32/boards/NUCLEO_L476RG"
+          DST="mp_source/ports/stm32/boards/NUCLEO_L476RG"
+          rm -rf "$DST"
+          mkdir -p "$DST"
+          if [ -d "$SRC" ]; then
+            cp -a "$SRC"/. "$DST"/
           fi
 
-      # 4. CONDITIONAL MPY-CROSS BUILD (Skips completely if cache restored it)
+      # 4. BUILD MPY-CROSS (make is fast when the cached build is already current)
       - name: Build mpy-cross
-        if: steps.cache-sources.outputs.cache-hit != 'true'
         run: |
           make -C mp_source/mpy-cross
 
       - name: Freeze Custom Class Modules into Firmware
+        shell: bash
         run: |
           SRC="ports/stm32/boards/NUCLEO_L476RG/modules"
           DST="mp_source/ports/stm32/boards/NUCLEO_L476RG/modules"
           if [ -d "$SRC" ]; then
             echo "Custom Python scripts detected. Freezing modules into Flash sectors..."
+            rm -rf "$DST"
             mkdir -p "$DST"
-            cp -r "$SRC"/* "$DST"/
+            cp -a "$SRC"/. "$DST"/
           else
             echo "No 'modules' directory found. Skipping code freezing."
           fi
