@@ -97,6 +97,7 @@ jobs:
           fi
 
       - name: Generate register interface module
+        if: ${{ vars.GENERATE_REGISTER_INTERFACE != 'false' }}
         shell: bash
         run: |
           set -euxo pipefail
