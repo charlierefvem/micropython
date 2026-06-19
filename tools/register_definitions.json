@@ -5,225 +5,461 @@
       "word_size": 4,
       "align": true,
       "extend": true
-    }
+    },
+    "Plots": [
+      {
+        "title" : "Angular Velocity Response",
+        "data" : {
+          "Time" : "Signals.Timekeeping.Time",
+          "Velocity": [
+            "Signals.OutputEstimates.Velocity",
+            "Signals.Controller.Setpoint"
+          ]
+        },
+        "system" : "LeftMotor"
+      },
+      {
+        "title" : "Displacement Response",
+        "data" : {
+          "Time" : "Signals.Timekeeping.Time",
+          "Displacement": [
+            "Signals.OutputEstimates.Displacement",
+            "Signals.Observer.Displacement"
+          ]
+        },
+        "system" : "LeftMotor"
+      },
+      {
+        "title" : "Disturbance Response",
+        "data" : {
+          "Time" : "Signals.Timekeeping.Time",
+          "Disturbance": [
+            "Signals.OutputEstimates.Disturbance"
+          ]
+        },
+        "system" : "LeftMotor"
+      },
+      {
+        "title" : "Controller Output",
+        "data" : {
+          "Time" : "Signals.Timekeeping.Time",
+          "Motor Voltage": [
+            "Signals.Observer.AppliedVoltage"
+          ]
+        },
+        "system" : "LeftMotor"
+      },
+      {
+        "title" : "Angular Velocity Response",
+        "data" : {
+          "Time" : "Signals.Timekeeping.Time",
+          "Velocity": [
+            "Signals.OutputEstimates.Velocity",
+            "Signals.Controller.Setpoint"
+          ]
+        },
+        "system" : "RightMotor"
+      },
+      {
+        "title" : "Displacement Response",
+        "data" : {
+          "Time" : "Signals.Timekeeping.Time",
+          "Displacement": [
+            "Signals.OutputEstimates.Displacement",
+            "Signals.Observer.Displacement"
+          ]
+        },
+        "system" : "RightMotor"
+      },
+      {
+        "title" : "Disturbance Response",
+        "data" : {
+          "Time" : "Signals.Timekeeping.Time",
+          "Disturbance": [
+            "Signals.OutputEstimates.Disturbance"
+          ]
+        },
+        "system" : "RightMotor"
+      },
+      {
+        "title" : "Controller Output",
+        "data" : {
+          "Time" : "Signals.Timekeeping.Time",
+          "Motor Voltage": [
+            "Signals.Observer.AppliedVoltage"
+          ]
+        },
+        "system" : "RightMotor"
+      }
+    ]
   },
   "Systems": {
     "LeftMotor": {
       "Registers": {
-        "Controller": {
-          "Parameters": {
-            "alias": "p",
+        "Commands": {
+          "Active": {
+            "type": "UINT8"
+          }
+        },
+        "Parameters": {
+          "Settings": {
             "SaturationMinimum": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "units": "V"
+              "units": "V",
+              "symbol": "V_{min}",
+              "displayname": "Saturation Minimum"
             },
             "SaturationMaximum": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "units": "V"
-            },
-            "DCSupplyVoltage": {
-              "type": "FLOAT32",
-              "range": [0, "inf"],
-              "units": "V"
-            },
-            "Setpoint": {
-              "type": "FLOAT32",
-              "range": ["-inf", "inf"],
-              "units": "rad/s"
-            },
-            "SampleLength": {
-              "type": "UINT32",
-              "range": [0, "max_u32"],
-              "units": "samples"
-            }
-          },
-          "Commands": {
-            "Reset": {
-              "type": "UINT8"
+              "units": "V",
+              "symbol": "V_{max}",
+              "displayname": "Saturation Maximum"
             }
           },
           "Gains": {
             "alias": "K",
+            "Kf": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "%*s/rad",
+              "symbol": "K_f",
+              "displayname": "Feedforward Gain"
+            },
             "Kp": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "units": "V*s/rad"
+              "units": "%*s/rad",
+              "symbol": "K_p",
+              "displayname": "Proportional Gain"
             },
             "Ki": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "units": "V/rad"
-            },
-            "Kf": {
-              "type": "FLOAT32",
-              "range": ["-inf", "inf"],
-              "units": "V*s/rad"
+              "units": "%*s/rad",
+              "symbol": "K_i",
+              "displayname": "Integral Gain"
             }
           }
         },
         "Signals": {
-          "Time": {
-            "type": "FLOAT32",
-            "range": [0, "inf"],
-            "units": "s"
+          "Timekeeping": {
+            "Time": {
+              "type": "UINT32",
+              "range": [0, "inf"],
+              "units": "us",
+              "symbol": "t",
+              "scale": 1e-6,
+              "scaledunits" : "s",
+              "displayname": "Time"
+            },
+            "SampleIndex": {
+              "type": "UINT32",
+              "range": [0, "max_u32"],
+              "units": "samples",
+              "symbol": "k",
+              "displayname": "Sample"
+            }
           },
-          "Inputs": {
+          "Controller": {
+            "alias" : "z",
+            "Setpoint": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s",
+              "symbol": "\\omega_{ref}",
+              "displayname": "Ang. Velocity Reference"
+            },
+            "Error": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s",
+              "symbol": "e",
+              "displayname": "Ang. Velocity Error"
+            },
+            "IntegralError": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s",
+              "symbol": "I",
+              "displayname": "Ang. Velocity Integral Error"
+            },
+            "RequestedVoltage": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V",
+              "symbol": "V_{req}",
+              "displayname": "Requested Voltage (Unsaturated)"
+            }
+          },
+          "Observer": {
             "alias": "w",
-            "Actuation": {
-              "alias": "u",
-              "MotorVoltage": {
-                "type": "FLOAT32",
-                "range": ["-inf", "inf"],
-                "units": "V"
-              }
+            "AppliedVoltage": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V",
+              "symbol": "V_m",
+              "displayname": "Applied Voltage (Saturated)"
             },
-            "Measurements": {
-              "alias": "y",
-              "Displacement": {
-                "type": "FLOAT32",
-                "range": ["-inf", "inf"],
-                "units": "rad"
-              }
+            "Displacement": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "tick",
+              "symbol": "\\theta",
+              "scale": 0.004372027,
+              "scaledunits" : "rad",
+              "displayname": "Measured Displacement"
             }
           },
-          "Estimates": {
+          "OutputEstimates": {
+            "alias": "y_h",
+            "Velocity": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s",
+              "symbol": "\\hat{\\omega}",
+              "displayname": "Ang. Velocity Estimate"
+            },
+            "Displacement": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad",
+              "symbol": "\\hat{\\theta}",
+              "displayname": "Angle Estimate"
+            },
+            "Disturbance": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s/s",
+              "symbol": "\\hat{d}",
+              "displayname": "Disturbance Estimate"
+            }
+          },
+          "StateEstimates": {
             "alias": "x_h",
-            "EstimatedVelocity": {
+            "Velocity": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "alias": "omega_h",
-              "units": "rad/s"
+              "units": "rad/s",
+              "symbol": "\\hat{\\omega}",
+              "displayname": "Ang. Velocity Estimate"
             },
-            "EstimatedDisplacement": {
+            "Displacement": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "alias": "theta_h",
-              "units": "rad"
+              "units": "rad",
+              "symbol": "\\hat{\\theta}",
+              "displayname": "Angle Estimate"
             },
-            "EstimatedDisturbance": {
+            "Disturbance": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "alias": "d_h",
-              "units": "rad/s/s"
+              "units": "rad/s/s",
+              "symbol": "\\hat{d}",
+              "displayname": "Disturbance Estimate"
             }
           },
-          "FiniteDifferenceVelocity": {
-            "type": "FLOAT32",
-            "range": ["-inf", "inf"],
-            "alias": "omega_fd",
-            "units": "rad/s"
+          "Motor" : {
+            "DCSupplyVoltage": {
+              "type": "FLOAT32",
+              "range": [0, "inf"],
+              "units": "V",
+              "symbol": "\\V_{DC}",
+              "displayname": "Battery Voltage"
+            },
+            "DutyCycle": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "%",
+              "symbol": "D",
+              "displayname": "PWM Duty Cycle"
+            }
           }
         }
       }
     },
     "RightMotor": {
       "Registers": {
-        "Controller": {
-          "Parameters": {
-            "alias": "p",
+        "Commands": {
+          "Active": {
+            "type": "UINT8"
+          }
+        },
+        "Parameters": {
+          "Settings": {
             "SaturationMinimum": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "units": "V"
+              "units": "V",
+              "symbol": "V_{min}",
+              "displayname": "Saturation Minimum"
             },
             "SaturationMaximum": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "units": "V"
-            },
-            "DCSupplyVoltage": {
-              "type": "FLOAT32",
-              "range": [0, "inf"],
-              "units": "V"
-            },
-            "Setpoint": {
-              "type": "FLOAT32",
-              "range": ["-inf", "inf"],
-              "units": "rad/s"
-            },
-            "SampleLength": {
-              "type": "UINT32",
-              "range": [0, "max_u32"],
-              "units": "samples"
-            }
-          },
-          "Commands": {
-            "Reset": {
-              "type": "UINT8"
+              "units": "V",
+              "symbol": "V_{max}",
+              "displayname": "Saturation Maximum"
             }
           },
           "Gains": {
             "alias": "K",
+            "Kf": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "%*s/rad",
+              "symbol": "K_f",
+              "displayname": "Feedforward Gain"
+            },
             "Kp": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "units": "V*s/rad"
+              "units": "%*s/rad",
+              "symbol": "K_p",
+              "displayname": "Proportional Gain"
             },
             "Ki": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "units": "V/rad"
-            },
-            "Kf": {
-              "type": "FLOAT32",
-              "range": ["-inf", "inf"],
-              "units": "V*s/rad"
+              "units": "%*s/rad",
+              "symbol": "K_i",
+              "displayname": "Integral Gain"
             }
           }
         },
         "Signals": {
-          "Time": {
-            "type": "FLOAT32",
-            "range": [0, "inf"],
-            "units": "s"
+          "Timekeeping": {
+            "Time": {
+              "type": "UINT32",
+              "range": [0, "inf"],
+              "units": "us",
+              "symbol": "t",
+              "scale": 1e-6,
+              "scaledunits" : "s",
+              "displayname": "Time"
+            },
+            "SampleIndex": {
+              "type": "UINT32",
+              "range": [0, "max_u32"],
+              "units": "samples",
+              "symbol": "k",
+              "displayname": "Sample"
+            }
           },
-          "Inputs": {
+          "Controller": {
+            "alias" : "z",
+            "Setpoint": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s",
+              "symbol": "\\omega_{ref}",
+              "displayname": "Ang. Velocity Reference"
+            },
+            "Error": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s",
+              "symbol": "e",
+              "displayname": "Ang. Velocity Error"
+            },
+            "IntegralError": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s",
+              "symbol": "I",
+              "displayname": "Ang. Velocity Integral Error"
+            },
+            "RequestedVoltage": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V",
+              "symbol": "V_{req}",
+              "displayname": "Requested Voltage (Unsaturated)"
+            }
+          },
+          "Observer": {
             "alias": "w",
-            "Actuation": {
-              "alias": "u",
-              "MotorVoltage": {
-                "type": "FLOAT32",
-                "range": ["-inf", "inf"],
-                "units": "V"
-              }
+            "AppliedVoltage": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "V",
+              "symbol": "V_m",
+              "displayname": "Applied Voltage (Saturated)"
             },
-            "Measurements": {
-              "alias": "y",
-              "Displacement": {
-                "type": "FLOAT32",
-                "range": ["-inf", "inf"],
-                "units": "rad"
-              }
+            "Displacement": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "tick",
+              "symbol": "\\theta",
+              "scale": 0.004372027,
+              "scaledunits" : "rad",
+              "displayname": "Measured Displacement"
             }
           },
-          "Estimates": {
+          "OutputEstimates": {
+            "alias": "y_h",
+            "Velocity": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s",
+              "symbol": "\\hat{\\omega}",
+              "displayname": "Ang. Velocity Estimate"
+            },
+            "Displacement": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad",
+              "symbol": "\\hat{\\theta}",
+              "displayname": "Angle Estimate"
+            },
+            "Disturbance": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "rad/s/s",
+              "symbol": "\\hat{d}",
+              "displayname": "Disturbance Estimate"
+            }
+          },
+          "StateEstimates": {
             "alias": "x_h",
-            "EstimatedVelocity": {
+            "Velocity": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "alias": "omega_h",
-              "units": "rad/s"
+              "units": "rad/s",
+              "symbol": "\\hat{\\omega}",
+              "displayname": "Ang. Velocity Estimate"
             },
-            "EstimatedDisplacement": {
+            "Displacement": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "alias": "theta_h",
-              "units": "rad"
+              "units": "rad",
+              "symbol": "\\hat{\\theta}",
+              "displayname": "Angle Estimate"
             },
-            "EstimatedDisturbance": {
+            "Disturbance": {
               "type": "FLOAT32",
               "range": ["-inf", "inf"],
-              "alias": "d_h",
-              "units": "rad/s/s"
+              "units": "rad/s/s",
+              "symbol": "\\hat{d}",
+              "displayname": "Disturbance Estimate"
             }
           },
-          "FiniteDifferenceVelocity": {
-            "type": "FLOAT32",
-            "range": ["-inf", "inf"],
-            "alias": "omega_fd",
-            "units": "rad/s"
+          "Motor" : {
+            "DCSupplyVoltage": {
+              "type": "FLOAT32",
+              "range": [0, "inf"],
+              "units": "V",
+              "symbol": "\\V_{DC}",
+              "displayname": "Battery Voltage"
+            },
+            "DutyCycle": {
+              "type": "FLOAT32",
+              "range": ["-inf", "inf"],
+              "units": "%",
+              "symbol": "D",
+              "displayname": "PWM Duty Cycle"
+            }
           }
         }
       }

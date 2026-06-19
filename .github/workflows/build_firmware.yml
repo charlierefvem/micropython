@@ -11,12 +11,15 @@ env:
   MICROPYTHON_REF: master
   ULAB_REF: master
   CACHE_VERSION: v2
+  GENERATE_REGISTER_INTERFACE: ${{ vars.GENERATE_REGISTER_INTERFACE || 'true' }}
   MICROPY_FROZEN_OPT_LEVEL: ${{ vars.MICROPY_FROZEN_OPT_LEVEL || '0' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Phase 1: Check out this repository and install the minimal native and ARM
+      # toolchains needed to build mpy-cross and STM32 firmware.
       - name: Checkout custom repo
         uses: actions/checkout@v4
 
@@ -31,6 +34,8 @@ jobs:
             libnewlib-arm-none-eabi
           arm-none-eabi-gcc --version
 
+      # Phase 2: Resolve exact upstream source revisions so cache keys track
+      # MicroPython and ulab changes without recloning them on every repo commit.
       - name: Resolve upstream source revisions
         id: upstream
         shell: bash
@@ -52,8 +57,8 @@ jobs:
           echo "micropython_sha=$mp_sha" >> "$GITHUB_OUTPUT"
           echo "ulab_sha=$ulab_sha" >> "$GITHUB_OUTPUT"
 
-      # Cache the external source trees and their build outputs. The key changes
-      # when upstream source or local board/ulab configuration changes.
+      # Phase 3: Restore cached external sources and build outputs. The key also
+      # includes local board, ulab, generator, and frozen-module opt settings.
       - name: Cache MicroPython, ulab, and build outputs
         id: cache-firmware
         uses: actions/cache@v4
@@ -66,6 +71,8 @@ jobs:
             ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-opt${{ env.MICROPY_FROZEN_OPT_LEVEL }}-${{ steps.upstream.outputs.micropython_sha }}-${{ steps.upstream.outputs.ulab_sha }}-
             ${{ runner.os }}-firmware-${{ env.CACHE_VERSION }}-
 
+      # Phase 4: Prepare the external source trees restored from cache, fetching
+      # only when the cache is missing or behind the resolved upstream revisions.
       - name: Prepare MicroPython source
         shell: bash
         run: |
@@ -97,18 +104,28 @@ jobs:
             git -C ulab submodule update --init --recursive --depth=1
           fi
 
+      # Phase 5: Optionally generate the frozen register interface and metadata
+      # from tools/register_definitions.json.
       - name: Generate register interface module
-        if: ${{ vars.GENERATE_REGISTER_INTERFACE != 'false' }}
+        if: ${{ env.GENERATE_REGISTER_INTERFACE != 'false' }}
         shell: bash
         run: |
           set -euxo pipefail
           python3 register_map_generator.py
           test -s register_interface.py
+          shopt -s nullglob
+          metadata_files=(register_metadata_*.json)
+          if [ "${#metadata_files[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one register_metadata_*.json file, found ${#metadata_files[@]}"
+            exit 1
+          fi
+          test -s "${metadata_files[0]}"
           mkdir -p ../ports/stm32/boards/NUCLEO_L476RG/modules
           cp register_interface.py ../ports/stm32/boards/NUCLEO_L476RG/modules/register_interface.py
         working-directory: tools
 
-      # 3. INJECT REPO CONFIGURATIONS (Always run this because your repo files might have edited properties)
+      # Phase 6: Inject this repository's ulab configuration and custom board
+      # definitions into the prepared MicroPython source tree.
       - name: Inject custom ulab configuration
         shell: bash
         run: |
@@ -127,11 +144,13 @@ jobs:
             cp -a "$SRC"/. "$DST"/
           fi
 
-      # 4. BUILD MPY-CROSS (make is fast when the cached build is already current)
+      # Phase 7: Build mpy-cross. make is fast when the cached build is current.
       - name: Build mpy-cross
         run: |
           make -C mp_source/mpy-cross
 
+      # Phase 8: Copy frozen Python modules into the prepared board directory so
+      # the STM32 firmware build can compile them with mpy-cross.
       - name: Freeze Custom Class Modules into Firmware
         shell: bash
         run: |
@@ -146,12 +165,12 @@ jobs:
             echo "No 'modules' directory found. Skipping code freezing."
           fi
 
+      # Phase 9: Fetch STM32-only MicroPython submodules required by this board.
       - name: Fetch STM32 Board Submodules
         run: |
-          # Explicitly build submodules needed specifically for STM32 architecture
           make -C mp_source/ports/stm32 BOARD=NUCLEO_L476RG submodules
 
-      # 5. COMPILE FIRMWARE (Always runs to process changes)
+      # Phase 10: Compile the STM32 firmware with ulab and frozen custom modules.
       - name: Build STM32 firmware with ulab
         run: |
           make -C mp_source/ports/stm32 \
@@ -160,12 +179,46 @@ jobs:
             FROZEN_MANIFEST=boards/NUCLEO_L476RG/manifest.py \
             V=1
 
+      # Phase 11: Collect firmware images and generated register metadata into a
+      # single artifact directory. firmware.hex is required; bin/dfu are included
+      # when the MicroPython STM32 build emits them.
+      - name: Stage firmware artifacts
+        shell: bash
+        run: |
+          set -euxo pipefail
+          build_dir="mp_source/ports/stm32/build-NUCLEO_L476RG"
+          artifact_dir="$GITHUB_WORKSPACE/artifacts"
 
-      # 6. Upload FIRMWARE (Always runs)
+          mkdir -p "$artifact_dir"
+          test -s "$build_dir/firmware.hex"
+          cp "$build_dir/firmware.hex" "$artifact_dir/"
+
+          for image in firmware.bin firmware.dfu; do
+            if [ -s "$build_dir/$image" ]; then
+              cp "$build_dir/$image" "$artifact_dir/"
+            else
+              echo "::warning::$build_dir/$image was not produced"
+            fi
+          done
+
+          shopt -s nullglob
+          metadata_files=(tools/register_metadata_*.json)
+          if [ "${GENERATE_REGISTER_INTERFACE}" != "false" ]; then
+            if [ "${#metadata_files[@]}" -ne 1 ]; then
+              echo "::error::Expected exactly one tools/register_metadata_*.json file, found ${#metadata_files[@]}"
+              exit 1
+            fi
+            cp "${metadata_files[0]}" "$artifact_dir/"
+          elif [ "${#metadata_files[@]}" -gt 0 ]; then
+            cp "${metadata_files[@]}" "$artifact_dir/"
+          fi
+
+          find "$artifact_dir" -maxdepth 1 -type f -print
+
+      # Phase 12: Upload the staged firmware images and register metadata.
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
           name: custom-nucleo-l476rg-firmware
-          path: |
-            mp_source/ports/stm32/build-NUCLEO_L476RG/firmware.hex
-            mp_source/ports/stm32/build-NUCLEO_L476RG/firmware.dfu
+          path: artifacts/*
+          if-no-files-found: error
