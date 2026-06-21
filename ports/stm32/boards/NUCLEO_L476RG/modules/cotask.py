@@ -30,8 +30,37 @@
 import gc                              # Memory allocation garbage collector
 import utime                           # Micropython version of time library
 import micropython                     # This shuts up incorrect warnings
+from math import sqrt
+from running_stats import Running_Stats
 
-
+_PROF_HEADER = ('┌───────────┬───┬───────┬──────┬───────────────────────┬───────────────────────┐\n'
+                '│           │   │       │      │     DURATION (ms)     │     LATENCY (ms)      │\n'
+                '│ TASK NAME │PRI│PERIOD │ RUNS ├───────┬───────┬───────┼───────┬───────┬───────┤\n'
+                '│           │   │ (ms)  │      │  AVG  │  MAX  │ STDEV │  AVG  │  MAX  │ STDEV │\n'
+                '├───────────┼───┼───────┼──────┼───────┼───────┼───────┼───────┼───────┼───────┤\n')
+_PROF_FOOTER = ('└───────────┴───┴───────┴──────┴───────┴───────┴───────┴───────┴───────┴───────┘\n')
+_PROF_ROW_PERIODIC = ('│{:<11.11s}'  # Name
+                      '│{:3d}'       # Priority
+                      '│{:7.1f}'     # Period
+                      '│{:6d}'       # Runs
+                      '│{:7.3f}'     # Avg Duration
+                      '│{:7.3f}'     # Max Latency
+                      '│{:7.3f}'     # St.Dev Duration
+                      '│{:7.3f}'     # Avg Latency
+                      '│{:7.3f}'     # Max Latency
+                      '│{:7.3f}│\n') # St.Dev Latency
+_PROF_ROW_APERIODIC = ('│{:<11.11s}'  # Name
+                       '│{:3d}'       # Priority
+                       '│   -   '     # (No period)
+                       '│{:6d}'       # Runs
+                       '│{:7.3f}'     # Avg Duration
+                       '│{:7.3f}'     # Max Latency
+                       '│{:7.3f}'     # St.Dev Duration
+                       '│{:7.3f}'     # Avg Latency
+                       '│{:7.3f}'     # Max Latency
+                       '│{:7.3f}│\n') # St.Dev Latency
+                       
+                       
 ## Implements multitasking with scheduling and some performance logging.
 #
 #  This class implements behavior common to tasks in a cooperative 
@@ -114,6 +143,11 @@ class Task:
             self.period = period
             self._next_run = None
 
+
+        # Parameters used by the profiler to track task performance
+        self._runtime_stats = Running_Stats()
+        self._latency_stats = Running_Stats()
+
         # Flag which causes the task to be profiled, in which the execution
         #  time of the @c run() method is measured and basic statistics kept. 
         self._prof = profile
@@ -163,6 +197,8 @@ class Task:
                 runt = utime.ticks_diff(etime, stime)
                 if self._runs > 2:
                     self._run_sum += runt
+                    self._runtime_stats.update(runt)
+                    
                     if runt > self._slowest:
                         self._slowest = runt
 
@@ -201,11 +237,11 @@ class Task:
             late = utime.ticks_diff(utime.ticks_us(), self._next_run)
             if late > 0:
                 self.go_flag = True
-                self._next_run = utime.ticks_diff(self.period, 
-                                                  -self._next_run)
+                self._next_run = utime.ticks_add(self._next_run, self.period)
 
                 # If keeping a latency profile, record the data
                 if self._prof:
+                    self._latency_stats.update(late)
                     self._late_sum += late
                     if late > self._latest:
                         self._latest = late
@@ -233,6 +269,8 @@ class Task:
         self._slowest = 0
         self._late_sum = 0
         self._latest = 0
+        self._runtime_stats.reset()
+        self._latency_stats.reset()
 
 
     ## This method returns a string containing the task's transition trace.
@@ -261,25 +299,39 @@ class Task:
     def go(self):
         self.go_flag = True
 
+    def profile(self):
+        if self.period:
+            return (self.name,
+                    self.priority,
+                    self.period/1000,
+                    self._runs,
+                    self._runtime_stats.mean/1000,
+                    self._runtime_stats.max/1000,
+                    self._runtime_stats.std/1000,
+                    self._latency_stats.mean/1000,
+                    self._latency_stats.max/1000,
+                    self._latency_stats.std/1000)
+        else:
+            return (self.name,
+                    self.priority,
+                    self._runs,
+                    self._runtime_stats.mean/1000,
+                    self._runtime_stats.max/1000,
+                    self._runtime_stats.std/1000)
 
-    ## This method converts the task to a string for diagnostic use.
-    #  It shows information about the task, including execution time
-    #  profiling results if profiling has been done.
-    #  @returns The string which represents the task
+    # This method converts the task to a string for diagnostic use.
+    # It shows information about the task.
     def __repr__(self):
-        rst = f"{self.name:<16s}{self.priority: 4d}"
-        try:
-            rst += f"{(self.period / 1000.0): 10.1f}"
-        except TypeError:
-            rst += '         -'
-        rst += f"{self._runs: 8d}"
-
-        if self._prof and self._runs > 0:
-            avg_dur = (self._run_sum / self._runs) / 1000.0
-            avg_late = (self._late_sum / self._runs) / 1000.0
-            rst += f"{avg_dur: 10.3f}{(self._slowest / 1000.0): 10.3f}"
-            if self.period != None:
-                rst += f"{avg_late: 10.3f}{(self._latest / 1000.0): 10.3f}"
+        rst = "Task("
+        rst += f"name={self.name!r}, "
+        rst += f"priority={self.priority!r}, "
+        if self.period is not None:
+            rst += f"period={self.period/1000.0:.1f}, "
+        else:
+            rst += "period=None, "
+        rst += f"profile={self._prof!r}, "
+        rst += f"trace={self._trace!r}"
+        rst += ")"
         return rst
 
 
@@ -376,12 +428,15 @@ class TaskList:
 
 
     ## Create some diagnostic text showing the tasks in the task list.
-    def __repr__(self):
-        ret_str = 'TASK             PRI    PERIOD    RUNS   AVG DUR   MAX ' \
-            'DUR  AVG LATE  MAX LATE\n'
+    def profile(self):
+        ret_str = _PROF_HEADER
         for pri in self.pri_list:
             for task in pri[2:]:
-                ret_str += str(task) + '\n'
+                if task.period is not None:
+                    ret_str += _PROF_ROW_PERIODIC.format(*task.profile())
+                else:
+                    ret_str += _PROF_ROW_APERIODIC.format(*task.profile())
+        ret_str += _PROF_FOOTER
 
         return ret_str
 
