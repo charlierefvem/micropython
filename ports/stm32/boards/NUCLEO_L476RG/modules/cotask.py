@@ -1,36 +1,38 @@
 # Cooperatively scheduled task support for MicroPython.
-# 
+#
 # This module contains classes for running tasks in a cooperative multitasking
 # system. Tasks are implemented as generators: functions or methods containing
 # loops which yield control back to the scheduler. References to the tasks are
 # kept in a task list, and the scheduler runs them according to the selected
 # scheduling policy.
-# 
+#
 # Original work:
 #     Copyright (c) 2017-2023 JR Ridgely
 #     Released under the GNU General Public License, version 3.0.
-# 
+#
 # Modifications:
 #     Copyright (c) 2026 Charlie Refvem
 #     Modified for Cal Poly Mechatronics coursework.
 #     Major changes include scheduler profiling, trigger-based tasks, revised
 #     task ownership conventions, and MicroPython-focused memory optimizations.
-# 
+#
 # This software is intended for educational use, but its use is not limited
 # thereto.
-# 
+#
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, version 3.0.
-# 
+#
 # This program is distributed in the hope that it will be useful, but WITHOUT
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
 
+import micropython                     # This shuts up incorrect warnings
+
+from runningstats import RunningStats
 
 import utime                           # Micropython version of time library
-import micropython                     # This shuts up incorrect warnings
-from running_stats import Running_Stats
 
 _PROF_HEADER = ('┌───────────┬───┬───────┬──────┬───────────────────────┬───────────────────────┐\n'
                 '│           │   │       │      │     DURATION (ms)     │     LATENCY (ms)      │\n'
@@ -38,35 +40,35 @@ _PROF_HEADER = ('┌───────────┬───┬────
                 '│           │   │ (ms)  │      │  AVG  │  MAX  │ STDEV │  AVG  │  MAX  │ STDEV │\n'
                 '├───────────┼───┼───────┼──────┼───────┼───────┼───────┼───────┼───────┼───────┤\n')
 _PROF_FOOTER = ('└───────────┴───┴───────┴──────┴───────┴───────┴───────┴───────┴───────┴───────┘\n')
-_PROF_ROW_PERIODIC = ('│{:<11.11s}'  # Name
-                      '│{:3d}'       # Priority
-                      '│{:7.1f}'     # Period
-                      '│{:6d}'       # Runs
-                      '│{:7.3f}'     # Avg Duration
-                      '│{:7.3f}'     # Max Latency
-                      '│{:7.3f}'     # St.Dev Duration
-                      '│{:7.3f}'     # Avg Latency
-                      '│{:7.3f}'     # Max Latency
-                      '│{:7.3f}│\n') # St.Dev Latency
-_PROF_ROW_APERIODIC = ('│{:<11.11s}'  # Name
-                       '│{:3d}'       # Priority
-                       '│   -   '     # (No period)
-                       '│{:6d}'       # Runs
-                       '│{:7.3f}'     # Avg Duration
-                       '│{:7.3f}'     # Max Latency
-                       '│{:7.3f}'     # St.Dev Duration
-                       '│{:7.3f}'     # Avg Latency
-                       '│{:7.3f}'     # Max Latency
-                       '│{:7.3f}│\n') # St.Dev Latency
-                       
-                       
+_PROF_ROW_PERIODIC = ('│{:<11.11s}'    # Name
+                      '│{:3d}'         # Priority
+                      '│{:7.1f}'       # Period
+                      '│{:6d}'         # Runs
+                      '│{:7.3f}'       # Avg Duration
+                      '│{:7.3f}'       # Max Latency
+                      '│{:7.3f}'       # St.Dev Duration
+                      '│{:7.3f}'       # Avg Latency
+                      '│{:7.3f}'       # Max Latency
+                      '│{:7.3f}│\n')   # St.Dev Latency
+_PROF_ROW_APERIODIC = ('│{:<11.11s}'   # Name
+                       '│{:3d}'        # Priority
+                       '│   -   '      # (No period)
+                       '│{:6d}'        # Runs
+                       '│{:7.3f}'      # Avg Duration
+                       '│{:7.3f}'      # Max Latency
+                       '│{:7.3f}'      # St.Dev Duration
+                       '│{:7.3f}'      # Avg Latency
+                       '│{:7.3f}'      # Max Latency
+                       '│{:7.3f}│\n')  # St.Dev Latency
+
+
 # Cooperative task with scheduling and performance logging support.
 #
 # This class implements behavior common to tasks in a cooperative multitasking
 # system running in MicroPython. Tasks can be scheduled by time or by an
 # external software trigger or interrupt, and run times can be profiled. The
-# user's task code must be implemented in a generator which yields control after
-# each short bounded run.
+# user's task code must be implemented in a generator which yields control
+# after each short bounded run.
 #
 # Example:
 # def task1_fun():
@@ -98,10 +100,11 @@ class Task:
     #              triggered through go(). The scheduler stores this internally
     #              in microseconds.
     #   profile  - True enables run-time profiling.
-    #   shares   - Optional list or tuple of shares and queues used by the task.
+    #   shares   - Optional list or tuple of shares and queues used by the
+    #              task.
     def __init__(self, run_fun, name="NoName", priority=0, period=None,
                  profile=False, shares=()):
-        # The function which is run to implement this task's code. Since it 
+        # The function which is run to implement this task's code. Since it
         # is a generator, we "run" it here, which doesn't actually run it but
         # gets it going as a generator which is ready to yield values
         if shares:
@@ -119,17 +122,16 @@ class Task:
         # The period, in microseconds, between runs of the task's generator. If
         # the period is None, the task is triggered through go() instead of a
         # time base.
-        if period != None:
+        if period is not None:
             self.period = int(period * 1000)
             self._next_run = utime.ticks_us() + self.period
         else:
             self.period = period
             self._next_run = None
 
-
         # Parameters used by the profiler to track task performance
-        self._runtime_stats = Running_Stats()
-        self._latency_stats = Running_Stats()
+        self._runtime_stats = RunningStats()
+        self._latency_stats = RunningStats()
 
         # Flag which enables profiling of execution time and basic statistics.
         self._prof = profile
@@ -140,7 +142,6 @@ class Task:
 
         # Timestamp recorded when a triggered task is marked ready.
         self._trigger_time = None
-
 
     # Run this task if it is ready.
     #
@@ -175,7 +176,6 @@ class Task:
         else:
             return False
 
-
     # Check whether the task is ready to run.
     #
     # Timer-based tasks update their go flag when the period has elapsed.
@@ -184,7 +184,7 @@ class Task:
     def ready(self) -> bool:
         # If this task uses a timer, check if it's time to run run() again. If
         # so, set go flag and set the timer to go off at the next run time
-        if self.period != None:
+        if self.period is not None:
             late = utime.ticks_diff(utime.ticks_us(), self._next_run)
             if late > 0:
                 self.go_flag = True
@@ -197,7 +197,6 @@ class Task:
         # If the task doesn't use a timer, we rely on go_flag to signal ready
         return self.go_flag
 
-
     # Set the period between task runs in milliseconds.
     #
     # Use None for a task triggered by calls to go() rather than by time.
@@ -209,7 +208,6 @@ class Task:
             self.period = int(new_period) * 1000
             self._next_run = utime.ticks_add(utime.ticks_us(), self.period)
 
-
     # Reset the variables used for execution time profiling.
     #
     # This method is also used by __init__() to create the variables.
@@ -217,7 +215,6 @@ class Task:
         self._runs = 0
         self._runtime_stats.reset()
         self._latency_stats.reset()
-
 
     # Set the flag indicating that this task is ready to run.
     #
@@ -279,11 +276,10 @@ class TaskList:
     # Initialize the priority buckets used to organize tasks.
     def __init__(self):
 
-        # The list of priority lists. Each priority with at least one task has a
-        # list whose first element is the priority and whose remaining elements
-        # are references to task objects at that priority.
+        # The list of priority lists. Each priority with at least one task has
+        # a list whose first element is the priority and whose remaining
+        # elements are references to task objects at that priority.
         self.pri_list = []
-
 
     # Append a task and keep the list sorted by priority.
     def append(self, task):
@@ -295,7 +291,7 @@ class TaskList:
                 pri.append(task)
                 break
 
-        # If the priority isn't in the list, this else clause starts a new 
+        # If the priority isn't in the list, this else clause starts a new
         # priority list with this task as first one. A priority list has the
         # priority as element 0, an index into the list of tasks (used for
         # round-robin scheduling those tasks) as the second item, and tasks
@@ -305,7 +301,6 @@ class TaskList:
 
         # Make sure the main list (of lists at each priority) is sorted
         self.pri_list.sort(key=lambda pri: pri[0], reverse=True)
-
 
     # Run tasks in round-robin order, ignoring priority.
     #
@@ -317,7 +312,6 @@ class TaskList:
         for pri in self.pri_list:
             for task in pri[2:]:
                 task.schedule()
-
 
     # Run tasks according to priority.
     #
@@ -341,7 +335,6 @@ class TaskList:
                 if ran:
                     return
 
-
     # Create diagnostic text showing task profiler data.
     def profile(self):
         ret_str = _PROF_HEADER
@@ -358,7 +351,3 @@ class TaskList:
 
 # Main task list created when cotask.py is imported.
 task_list = TaskList()
-
-
-
-

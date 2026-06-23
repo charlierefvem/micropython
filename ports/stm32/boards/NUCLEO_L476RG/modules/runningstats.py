@@ -1,7 +1,8 @@
 from math import sqrt
 
+
 # Online statistics accumulator using Welford's algorithm.
-class Running_Stats:
+class RunningStats:
     # Initialize empty statistics.
     def __init__(self):
         # Sample count
@@ -21,7 +22,7 @@ class Running_Stats:
         # Check for max values
         if x > self._max:
             self._max = x
-        
+
         # Apply Welford's online algorithm for updating mean and variance
         self._n += 1
         self._delta = x - self._mean
@@ -40,17 +41,17 @@ class Running_Stats:
     @property
     def std(self):
         return sqrt(self.variance)
-    
+
     # Running mean of the values seen so far.
     @property
     def mean(self):
         return self._mean
-        
+
     # Maximum observed value.
     @property
     def max(self):
         return self._max
-        
+
     # Clear all accumulated statistics.
     def reset(self):
         self._n = 0

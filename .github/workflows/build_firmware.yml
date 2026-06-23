@@ -112,7 +112,7 @@ jobs:
         run: |
           set -euxo pipefail
           python3 register_map_generator.py
-          test -s register_interface.py
+          test -s registerinterface.py
           shopt -s nullglob
           metadata_files=(register_metadata_*.json)
           if [ "${#metadata_files[@]}" -ne 1 ]; then
@@ -121,7 +121,7 @@ jobs:
           fi
           test -s "${metadata_files[0]}"
           mkdir -p ../ports/stm32/boards/NUCLEO_L476RG/modules
-          cp register_interface.py ../ports/stm32/boards/NUCLEO_L476RG/modules/register_interface.py
+          cp registerinterface.py ../ports/stm32/boards/NUCLEO_L476RG/modules/registerinterface.py
         working-directory: tools
 
       # Phase 6: Inject this repository's ulab configuration and custom board

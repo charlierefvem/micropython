@@ -427,7 +427,7 @@ def walk(name, value, parent_path=()):
 
 
 def build_map(filename="register_definitions.json",
-              output_filename="register_interface.py",
+              output_filename="registerinterface.py",
               use_literals=True,
               use_substructs=False,
               private_dicts=True):
