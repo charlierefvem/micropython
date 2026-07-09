@@ -92,25 +92,20 @@ class Task:
     # Initialize a task object so it may be run by the scheduler.
     #
     # Arguments:
-    #   run_fun  - Function which implements the task's code. It must return a
-    #              generator which yields control back to the scheduler.
+    #   run_fun  - A generator which implements the task and yields control
+    #              back to the scheduler.
     #   name     - Task name, by default "NoName".
     #   priority - Positive integer priority. Higher numbers run first.
     #   period   - Time in milliseconds between task runs, or None for a task
     #              triggered through go(). The scheduler stores this internally
     #              in microseconds.
     #   profile  - True enables run-time profiling.
-    #   shares   - Optional list or tuple of shares and queues used by the
     #              task.
     def __init__(self, run_fun, name="NoName", priority=0, period=None,
-                 profile=False, shares=()):
-        # The function which is run to implement this task's code. Since it
-        # is a generator, we "run" it here, which doesn't actually run it but
-        # gets it going as a generator which is ready to yield values
-        if shares:
-            self._run_gen = run_fun(shares)
-        else:
-            self._run_gen = run_fun()
+                 profile=False):
+
+        # The generator function that implements the task.
+        self._run_gen = run_fun
 
         # The name of the task, hopefully a short and descriptive string.
         self.name = name
