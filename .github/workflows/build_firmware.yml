@@ -120,9 +120,24 @@ jobs:
             exit 1
           fi
           test -s "${metadata_files[0]}"
+          python3 -m json.tool "${metadata_files[0]}" >/dev/null
           mkdir -p ../ports/stm32/boards/NUCLEO_L476RG/modules
           cp registerinterface.py ../ports/stm32/boards/NUCLEO_L476RG/modules/registerinterface.py
         working-directory: tools
+
+      - name: Generate firmware build provenance
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 tools/build_manifest.py \
+            --custom-repository-sha "$GITHUB_SHA" \
+            --micropython-sha "${{ steps.upstream.outputs.micropython_sha }}" \
+            --ulab-sha "${{ steps.upstream.outputs.ulab_sha }}" \
+            --micropython-ref "$MICROPYTHON_REF" \
+            --ulab-ref "$ULAB_REF" \
+            --frozen-opt-level "$MICROPY_FROZEN_OPT_LEVEL" \
+            --generate-register-interface "$GENERATE_REGISTER_INTERFACE"
+          python3 -m json.tool tools/build_manifest.json >/dev/null
 
       # Phase 6: Inject this repository's ulab configuration and custom board
       # definitions into the prepared MicroPython source tree.
@@ -179,9 +194,9 @@ jobs:
             FROZEN_MANIFEST=boards/NUCLEO_L476RG/manifest.py \
             V=1
 
-      # Phase 11: Collect firmware images and generated register metadata into a
-      # single artifact directory. firmware.hex is required; bin/dfu are included
-      # when the MicroPython STM32 build emits them.
+      # Phase 11: Collect firmware images, register API metadata, and build
+      # provenance into a single artifact directory. firmware.hex is required;
+      # bin/dfu are included when the MicroPython STM32 build emits them.
       - name: Stage firmware artifacts
         shell: bash
         run: |
@@ -192,6 +207,8 @@ jobs:
           mkdir -p "$artifact_dir"
           test -s "$build_dir/firmware.hex"
           cp "$build_dir/firmware.hex" "$artifact_dir/"
+          test -s tools/build_manifest.json
+          cp tools/build_manifest.json "$artifact_dir/"
 
           for image in firmware.bin firmware.dfu; do
             if [ -s "$build_dir/$image" ]; then
@@ -215,7 +232,7 @@ jobs:
 
           find "$artifact_dir" -maxdepth 1 -type f -print
 
-      # Phase 12: Upload the staged firmware images and register metadata.
+      # Phase 12: Upload firmware images, register metadata, and provenance.
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -43,6 +43,9 @@ class TraceBuffer:
     #            - An encoded event ID
     #            - Any 16-bit value useful for logging
     def __init__(self, length):
+        if length <= 0:
+            raise ValueError("TraceBuffer length must be greater than zero")
+
         # The length (max number of items) for the buffer
         self._length = length
         # The capacity (total number of bytes) for the buffer

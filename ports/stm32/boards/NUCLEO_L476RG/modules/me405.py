@@ -1,23 +1,9 @@
-# me405_firmware.py
+# Compatibility import for existing student code.
+#
+# New code may import me4305 directly. This module intentionally re-exports the
+# same info() API so existing ``import me405`` statements continue to work.
+#
+# Copyright (c) 2026 Charlie Refvem
+# SPDX-License-Identifier: GPL-3.0-only
 
-FIRMWARE_NAME = "ME405 Firmware"
-FIRMWARE_VERSION = "2026.1"
-
-MICROPYTHON_BASE = "1.29-dev"
-
-MODULES = (
-    "ulab",
-    "cotask",
-    "task_share",
-)
-
-BUILD_DATE = "2026-06-15"
-
-def info():
-    import sys
-
-    print(FIRMWARE_NAME)
-    print("Version:", FIRMWARE_VERSION)
-    # print(sys.version)
-    print(sys.implementation)
-    # print(sys.implementation.version)
+from me4305 import *

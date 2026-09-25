@@ -31,8 +31,9 @@ class FSM:
         # The next state to run
         self._state: int = initial_state
 
-        # The last state ran
-        self._last_state: int = 0
+        # The last state run. Before the first transition, the initial state is
+        # both the current state and the most recently selected state.
+        self._last_state: int = initial_state
 
     # Placeholder run method for subclasses to override.
     def run(self):
