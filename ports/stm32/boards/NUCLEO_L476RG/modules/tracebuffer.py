@@ -1,3 +1,25 @@
+# Compact task and state event tracing for MicroPython.
+#
+# This module implements a fixed-size buffer which stores task identifiers,
+# state identifiers, and 16-bit event data in a compact byte-packed format. It
+# supports optional overwrite behavior and formatted trace output.
+#
+# Original work:
+#     Copyright (c) 2026 Charlie Refvem
+#     Released under the GNU General Public License, version 3.0.
+#
+# This software is intended for educational use, but its use is not limited
+# thereto.
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, version 3.0.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+
 from struct import pack_into, unpack_from
 
 from micropython import const

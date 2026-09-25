@@ -98,9 +98,12 @@ class Task:
     #   priority - Positive integer priority. Higher numbers run first.
     #   period   - Time in milliseconds between task runs, or None for a task
     #              triggered through go(). The scheduler stores this internally
-    #              in microseconds.
+    #              in microseconds. A task with period=0 is continuously ready
+    #              after its initial scheduling time. Use this only for an idle
+    #              task, and assign it a priority lower than every non-idle
+    #              task. The idle task then runs whenever no higher-priority
+    #              task is ready.
     #   profile  - True enables run-time profiling.
-    #              task.
     def __init__(self, run_fun, name="NoName", priority=0, period=None,
                  profile=False):
 
@@ -221,7 +224,7 @@ class Task:
 
     # Return profiling values used by the task-list report.
     def profile(self):
-        if self.period:
+        if self.period is not None:
             return (self.name,
                     self.priority,
                     self.period/1000,

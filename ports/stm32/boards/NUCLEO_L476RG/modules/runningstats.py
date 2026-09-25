@@ -1,3 +1,25 @@
+# Online statistics support for MicroPython.
+#
+# This module contains an accumulator which uses Welford's algorithm to update
+# the mean, sample variance, standard deviation, and maximum of a data stream
+# without retaining its individual samples.
+#
+# Original work:
+#     Copyright (c) 2026 Charlie Refvem
+#     Released under the GNU General Public License, version 3.0.
+#
+# This software is intended for educational use, but its use is not limited
+# thereto.
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, version 3.0.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+
 from math import sqrt
 
 
@@ -20,7 +42,7 @@ class RunningStats:
     # Add a new sample to the running statistics.
     def update(self, x):
         # Check for max values
-        if x > self._max:
+        if self._n == 0 or x > self._max:
             self._max = x
 
         # Apply Welford's online algorithm for updating mean and variance
