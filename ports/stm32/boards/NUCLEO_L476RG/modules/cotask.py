@@ -82,7 +82,7 @@ _PROF_ROW_APERIODIC = ('│{:<11.11s}'   # Name
 #         yield state
 #
 # # In main, create this task and set it to run twice per second.
-# task1 = cotask.Task(task1_fun, name='Task 1', priority=1,
+# task1 = cotask.Task(task1_fun(), name='Task 1', priority=1,
 #                     period=500, profile=True)
 # cotask.task_list.append(task1)
 # while True:
@@ -200,7 +200,7 @@ class Task:
             self.period = None
             self._next_run = None
         else:
-            self.period = int(new_period) * 1000
+            self.period = int(new_period * 1000)
             self._next_run = utime.ticks_add(utime.ticks_us(), self.period)
 
     # Reset the variables used for execution time profiling.
