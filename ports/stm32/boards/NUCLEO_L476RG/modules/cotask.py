@@ -60,6 +60,16 @@ _PROF_ROW_APERIODIC = ('│{:<11.11s}'   # Name
                        '│{:7.3f}'      # Avg Latency
                        '│{:7.3f}'      # Max Latency
                        '│{:7.3f}│\n')  # St.Dev Latency
+_PROF_ROW_IDLE = ('│{:<11.11s}'        # Name
+                  '│{:3d}'             # Priority
+                  '│{:7.1f}'           # Period
+                  '│{:6d}'             # Runs
+                  '│{:7.3f}'           # Avg Duration
+                  '│{:7.3f}'           # Max Duration
+                  '│{:7.3f}'           # St.Dev Duration
+                  '│   -   '           # No Avg Latency
+                  '│   -   '           # No Max Latency
+                  '│   -   │\n')       # No St.Dev Latency
 
 
 # Cooperative task with scheduling and performance logging support.
@@ -127,9 +137,10 @@ class Task:
             self.period = period
             self._next_run = None
 
-        # Parameters used by the profiler to track task performance
+        # Parameters used by the profiler to track task performance.
+        # Idle tasks have no scheduled deadline, so latency does not apply.
         self._runtime_stats = RunningStats()
-        self._latency_stats = RunningStats()
+        self._latency_stats = RunningStats() if self.period != 0 else None
 
         # Flag which enables profiling of execution time and basic statistics.
         self._prof = profile
@@ -189,7 +200,7 @@ class Task:
                 self._next_run = utime.ticks_add(self._next_run, self.period)
 
                 # If keeping a latency profile, record the data
-                if self._prof:
+                if self._prof and self._latency_stats is not None:
                     self._latency_stats.update(late)
 
         # If the task doesn't use a timer, we rely on go_flag to signal ready
@@ -206,13 +217,19 @@ class Task:
             self.period = int(new_period * 1000)
             self._next_run = utime.ticks_add(utime.ticks_us(), self.period)
 
+        if self.period == 0:
+            self._latency_stats = None
+        elif self._latency_stats is None:
+            self._latency_stats = RunningStats()
+
     # Reset the variables used for execution time profiling.
     #
     # This method is also used by __init__() to create the variables.
     def reset_profile(self):
         self._runs = 0
         self._runtime_stats.reset()
-        self._latency_stats.reset()
+        if self._latency_stats is not None:
+            self._latency_stats.reset()
 
     # Set the flag indicating that this task is ready to run.
     #
@@ -224,27 +241,18 @@ class Task:
 
     # Return profiling values used by the task-list report.
     def profile(self):
+        values = (self.name, self.priority)
         if self.period is not None:
-            return (self.name,
-                    self.priority,
-                    self.period/1000,
-                    self._runs,
-                    self._runtime_stats.mean/1000,
-                    self._runtime_stats.max/1000,
-                    self._runtime_stats.std/1000,
-                    self._latency_stats.mean/1000,
-                    self._latency_stats.max/1000,
-                    self._latency_stats.std/1000)
-        else:
-            return (self.name,
-                    self.priority,
-                    self._runs,
-                    self._runtime_stats.mean/1000,
-                    self._runtime_stats.max/1000,
-                    self._runtime_stats.std/1000,
-                    self._latency_stats.mean/1000,
-                    self._latency_stats.max/1000,
-                    self._latency_stats.std/1000)
+            values += (self.period/1000,)
+        values += (self._runs,
+                   self._runtime_stats.mean/1000,
+                   self._runtime_stats.max/1000,
+                   self._runtime_stats.std/1000)
+        if self._latency_stats is not None:
+            values += (self._latency_stats.mean/1000,
+                       self._latency_stats.max/1000,
+                       self._latency_stats.std/1000)
+        return values
 
     # This method converts the task to a string for diagnostic use.
     # It shows information about the task.
@@ -338,7 +346,9 @@ class TaskList:
         ret_str = _PROF_HEADER
         for pri in self.pri_list:
             for task in pri[2:]:
-                if task.period is not None:
+                if task.period == 0:
+                    ret_str += _PROF_ROW_IDLE.format(*task.profile())
+                elif task.period is not None:
                     ret_str += _PROF_ROW_PERIODIC.format(*task.profile())
                 else:
                     ret_str += _PROF_ROW_APERIODIC.format(*task.profile())
