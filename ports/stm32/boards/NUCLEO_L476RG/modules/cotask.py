@@ -40,6 +40,19 @@ _PROF_HEADER = ('┌───────────┬───┬────
                 '│           │   │ (ms)  │      │  AVG  │  MAX  │ STDEV │  AVG  │  MAX  │ STDEV │\n'
                 '├───────────┼───┼───────┼──────┼───────┼───────┼───────┼───────┼───────┼───────┤\n')
 _PROF_FOOTER = ('└───────────┴───┴───────┴──────┴───────┴───────┴───────┴───────┴───────┴───────┘\n')
+_PROF_NOTES = ('\n'
+               'Profile Info:\n'
+               '  TASK NAME:  Truncates to 11 characters.\n'
+               '  PRI:        Priority; higher runs first.\n'
+               '  PERIOD:     Release interval in ms; blank = triggered, 0 = idle.\n'
+               '  RUNS:       Actual task iterations since profile reset; blank = unprofiled.\n'
+               '  DURATION:   Run time in ms; blank = unprofiled.\n'
+               '  LATENCY:    Release-to-start delay in ms for triggered or periodic tasks;\n'
+               '              blank = unprofiled or idle.\n'
+               '\n'
+               'Duration stats skip the first two periodic/idle runs after each profile reset.\n'
+               'AVG = average; MAX = maximum; STDEV = sample standard deviation (Welford).\n'
+               '\n')
 _PROF_COL_FORMATS = ('{:<11.11s}',  # Name
                      '{:3d}',       # Priority
                      '{:7.1f}',     # Period
@@ -353,12 +366,11 @@ class TaskList:
                                              _PROF_COL_WIDTHS,
                                              task.profile()):
                     if value is None:
-                        columns.append(' ' * ((width - 1) // 2)
-                                       + '-' + ' ' * (width // 2))
+                        columns.append(' ' * width)
                     else:
                         columns.append(fmt.format(value))
                 ret_str += '│' + '│'.join(columns) + '│\n'
-        ret_str += _PROF_FOOTER
+        ret_str += _PROF_FOOTER + _PROF_NOTES
 
         return ret_str
 
