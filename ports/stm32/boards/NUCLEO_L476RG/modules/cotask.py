@@ -29,6 +29,7 @@
 # details.
 
 import micropython                     # This shuts up incorrect warnings
+import pyb
 
 from runningstats import RunningStats
 
@@ -71,10 +72,10 @@ _PROF_COL_WIDTHS = tuple(len(fmt.format('' if 's' in fmt else 0))
 # Cooperative task with scheduling and performance logging support.
 #
 # This class implements behavior common to tasks in a cooperative multitasking
-# system running in MicroPython. Tasks can be scheduled by time or by an
-# external software trigger or interrupt, and run times can be profiled. The
-# user's task code must be implemented in a generator which yields control
-# after each short bounded run.
+# system running in MicroPython. Tasks can be scheduled by time or by a
+# software trigger from cooperative code or an ISR, and run times can be
+# profiled. The user's task code must be implemented in a generator which
+# yields control after each short bounded run.
 #
 # Example:
 # def task1_fun():
@@ -152,17 +153,32 @@ class Task:
     #
     # Returns True if the task ran, or False if it was not ready.
     def schedule(self) -> bool:
-        if self.ready():
+        if self.period is None:
+            # Consume the pending trigger and its timestamp together. A new
+            # ISR trigger after this section remains pending for the next run.
+            irq_state = pyb.disable_irq()
+            try:
+                is_ready = self.go_flag
+                trigger_time = self._trigger_time
+                if is_ready:
+                    self.go_flag = False
+            finally:
+                pyb.enable_irq(irq_state)
+        else:
+            # Timer checks and their statistics stay outside the critical
+            # section; only triggered tasks use the atomic handoff above.
+            is_ready = self.ready()
+            if is_ready:
+                self.go_flag = False
 
-            # Reset the go flag for the next run
-            self.go_flag = False
+        if is_ready:
 
             # If profiling, save the start time
             if self._prof:
                 stime = utime.ticks_us()
 
-                if self.period is None and self._trigger_time is not None:
-                    late = utime.ticks_diff(stime, self._trigger_time)
+                if self.period is None and trigger_time is not None:
+                    late = utime.ticks_diff(stime, trigger_time)
                     self._latency_stats.update(late)
 
             # Advance the generator implementing this task.
@@ -229,11 +245,18 @@ class Task:
 
     # Set the flag indicating that this task is ready to run.
     #
-    # This may be called from an interrupt service routine or another task.
+    # Call from cooperative code, or from an ISR for a triggered task
+    # (period=None). Updating the existing flag and timestamp does not allocate
+    # on STM32: ticks_us() returns a small integer, including across wraparound.
+    # Multiple calls before the task runs coalesce into one pending run.
     def go(self):
-        if self._prof and self.period is None and not self.go_flag:
-            self._trigger_time = utime.ticks_us()
-        self.go_flag = True
+        irq_state = pyb.disable_irq()
+        try:
+            if self._prof and self.period is None and not self.go_flag:
+                self._trigger_time = utime.ticks_us()
+            self.go_flag = True
+        finally:
+            pyb.enable_irq(irq_state)
 
     # Return one value per report column, with None for unavailable values.
     def profile(self):
