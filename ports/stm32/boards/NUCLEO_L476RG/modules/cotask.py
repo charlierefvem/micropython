@@ -40,36 +40,19 @@ _PROF_HEADER = ('┌───────────┬───┬────
                 '│           │   │ (ms)  │      │  AVG  │  MAX  │ STDEV │  AVG  │  MAX  │ STDEV │\n'
                 '├───────────┼───┼───────┼──────┼───────┼───────┼───────┼───────┼───────┼───────┤\n')
 _PROF_FOOTER = ('└───────────┴───┴───────┴──────┴───────┴───────┴───────┴───────┴───────┴───────┘\n')
-_PROF_ROW_PERIODIC = ('│{:<11.11s}'    # Name
-                      '│{:3d}'         # Priority
-                      '│{:7.1f}'       # Period
-                      '│{:6d}'         # Runs
-                      '│{:7.3f}'       # Avg Duration
-                      '│{:7.3f}'       # Max Latency
-                      '│{:7.3f}'       # St.Dev Duration
-                      '│{:7.3f}'       # Avg Latency
-                      '│{:7.3f}'       # Max Latency
-                      '│{:7.3f}│\n')   # St.Dev Latency
-_PROF_ROW_APERIODIC = ('│{:<11.11s}'   # Name
-                       '│{:3d}'        # Priority
-                       '│   -   '      # (No period)
-                       '│{:6d}'        # Runs
-                       '│{:7.3f}'      # Avg Duration
-                       '│{:7.3f}'      # Max Latency
-                       '│{:7.3f}'      # St.Dev Duration
-                       '│{:7.3f}'      # Avg Latency
-                       '│{:7.3f}'      # Max Latency
-                       '│{:7.3f}│\n')  # St.Dev Latency
-_PROF_ROW_IDLE = ('│{:<11.11s}'        # Name
-                  '│{:3d}'             # Priority
-                  '│{:7.1f}'           # Period
-                  '│{:6d}'             # Runs
-                  '│{:7.3f}'           # Avg Duration
-                  '│{:7.3f}'           # Max Duration
-                  '│{:7.3f}'           # St.Dev Duration
-                  '│   -   '           # No Avg Latency
-                  '│   -   '           # No Max Latency
-                  '│   -   │\n')       # No St.Dev Latency
+_PROF_COL_FORMATS = ('{:<11.11s}',  # Name
+                     '{:3d}',       # Priority
+                     '{:7.1f}',     # Period
+                     '{:6d}',       # Runs
+                     '{:7.3f}',     # Avg Duration
+                     '{:7.3f}',     # Max Duration
+                     '{:7.3f}',     # St.Dev Duration
+                     '{:7.3f}',     # Avg Latency
+                     '{:7.3f}',     # Max Latency
+                     '{:7.3f}')     # St.Dev Latency
+# Derive widths by formatting an empty string or zero for each column.
+_PROF_COL_WIDTHS = tuple(len(fmt.format('' if 's' in fmt else 0))
+                         for fmt in _PROF_COL_FORMATS)
 
 
 # Cooperative task with scheduling and performance logging support.
@@ -239,19 +222,38 @@ class Task:
             self._trigger_time = utime.ticks_us()
         self.go_flag = True
 
-    # Return profiling values used by the task-list report.
+    # Return one value per report column, with None for unavailable values.
     def profile(self):
+        # Task name and priority columns are always available.
         values = (self.name, self.priority)
+
+        # Period column: triggered tasks have no period.
         if self.period is not None:
             values += (self.period/1000,)
-        values += (self._runs,
-                   self._runtime_stats.mean/1000,
-                   self._runtime_stats.max/1000,
-                   self._runtime_stats.std/1000)
-        if self._latency_stats is not None:
+        else:
+            values += (None,)
+
+        # Run count column: only counted when profiling is enabled.
+        if self._prof:
+            values += (self._runs,)
+        else:
+            values += (None,)
+
+        # Duration columns: average, maximum, and standard deviation.
+        if self._prof:
+            values += (self._runtime_stats.mean/1000,
+                       self._runtime_stats.max/1000,
+                       self._runtime_stats.std/1000)
+        else:
+            values += (None,) * 3
+
+        # Latency columns: unavailable for idle or unprofiled tasks.
+        if self._prof and self._latency_stats is not None:
             values += (self._latency_stats.mean/1000,
                        self._latency_stats.max/1000,
                        self._latency_stats.std/1000)
+        else:
+            values += (None,) * 3
         return values
 
     # This method converts the task to a string for diagnostic use.
@@ -346,12 +348,16 @@ class TaskList:
         ret_str = _PROF_HEADER
         for pri in self.pri_list:
             for task in pri[2:]:
-                if task.period == 0:
-                    ret_str += _PROF_ROW_IDLE.format(*task.profile())
-                elif task.period is not None:
-                    ret_str += _PROF_ROW_PERIODIC.format(*task.profile())
-                else:
-                    ret_str += _PROF_ROW_APERIODIC.format(*task.profile())
+                columns = []
+                for fmt, width, value in zip(_PROF_COL_FORMATS,
+                                             _PROF_COL_WIDTHS,
+                                             task.profile()):
+                    if value is None:
+                        columns.append(' ' * ((width - 1) // 2)
+                                       + '-' + ' ' * (width // 2))
+                    else:
+                        columns.append(fmt.format(value))
+                ret_str += '│' + '│'.join(columns) + '│\n'
         ret_str += _PROF_FOOTER
 
         return ret_str
